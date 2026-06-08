@@ -1,0 +1,47 @@
+rules_version = '2';
+
+// Arabic Financial Management System – Firestore Security Rules
+// Only authenticated users whose profile has isActive == true AND role == "owner"
+// can read or write any business collection.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+// Or paste into: Firebase Console → Firestore → Rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper: fetch the caller's profile from users/{uid} ──
+    function callerProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // ── Condition: must be authenticated + active owner ──
+    function isActiveOwner() {
+      return request.auth != null
+          && callerProfile().isActive == true
+          && callerProfile().role    == 'owner';
+    }
+
+    // ── users/{uid}: each user can only read/write their own document ──
+    // This is what AuthContext reads on login to validate the profile.
+    // We allow write so AuthContext can create the document on first login.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ── All business collections: active owners only ──
+    // Covers: financialAccounts, accountTransfers, customers, suppliers,
+    //         invoices, quotations, payments, receipts, inventoryItems,
+    //         warehouses, warehouseTransfers, salesOrders, purchaseOrders,
+    //         productionOrders, employees, assets, settings, auditLogs
+    match /{collection}/{docId} {
+      allow read, write: if isActiveOwner();
+    }
+
+    // ── Sub-collections (if any are added in the future) ──
+    match /{collection}/{docId}/{sub=**} {
+      allow read, write: if isActiveOwner();
+    }
+
+  }
+}
