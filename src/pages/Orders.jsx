@@ -6,7 +6,7 @@ import { confirm } from '../components/UI';
 
 function OrderForm({ type, customers, suppliers, items: invItems, onSave, onClose }) {
   const [form, setForm] = useState({
-    customerId: '', supplierId: '', date: today(), deliveryDate: addDays(today(), 7), dueDate: addDays(today(), 30),
+    customerId: '', supplierId: '', date: today(), deliveryDate: addDays(today(), 7),
     description: '', notes: '', discount: 0, status: 'new',
     items: [{ name: '', quantity: 1, unitPrice: 0 }],
   });
@@ -46,7 +46,6 @@ function OrderForm({ type, customers, suppliers, items: invItems, onSave, onClos
         )}
         <Field label="تاريخ الأمر"><input type="date" className="form-control" value={form.date} onChange={e => set('date', e.target.value)} /></Field>
         <Field label="تاريخ التسليم"><input type="date" className="form-control" value={form.deliveryDate} onChange={e => set('deliveryDate', e.target.value)} /></Field>
-        <Field label="تاريخ الاستحقاق"><input type="date" className="form-control" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} /></Field>
         <Field label="الوصف"><input className="form-control" value={form.description} onChange={e => set('description', e.target.value)} placeholder="وصف مختصر" /></Field>
       </div>
 
@@ -100,18 +99,21 @@ function OrderForm({ type, customers, suppliers, items: invItems, onSave, onClos
 
 export default function Orders({ initialTab = 'sales' }) {
   const store = useStore();
+  const bu = store.currentBusinessUnit;
   const [tab, setTab] = useState(initialTab);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [modal, setModal] = useState(false);
 
   const salesOrders = store.salesOrders.filter(o => {
+    if ((o.businessUnitId || 'main') !== bu) return false;
     if (search && !o.number?.includes(search)) return false;
     if (statusFilter && o.status !== statusFilter) return false;
     return true;
   }).sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const purchaseOrders = store.purchaseOrders.filter(o => {
+    if ((o.businessUnitId || 'main') !== bu) return false;
     if (search && !o.number?.includes(search)) return false;
     if (statusFilter && o.status !== statusFilter) return false;
     return true;
@@ -146,8 +148,8 @@ export default function Orders({ initialTab = 'sales' }) {
 
       <Tabs
         tabs={[
-          { key: 'sales', label: '📦 أوامر البيع', count: store.salesOrders.length },
-          { key: 'purchase', label: '🛒 أوامر الشراء', count: store.purchaseOrders.length },
+          { key: 'sales', label: '📦 أوامر البيع', count: salesOrders.length },
+          { key: 'purchase', label: '🛒 أوامر الشراء', count: purchaseOrders.length },
         ]}
         active={tab}
         onChange={setTab}
@@ -204,7 +206,9 @@ export default function Orders({ initialTab = 'sales' }) {
       <Modal open={modal} onClose={() => setModal(false)} title={tab === 'sales' ? 'أمر بيع جديد' : 'أمر شراء جديد'} size="xl">
         <OrderForm
           type={tab === 'sales' ? 'sale' : 'purchase'}
-          customers={store.customers} suppliers={store.suppliers} items={store.items}
+          customers={store.customers.filter(c => (c.businessUnitId || 'main') === bu)}
+          suppliers={store.suppliers.filter(s => (s.businessUnitId || 'main') === bu)}
+          items={store.items.filter(i => (i.businessUnitId || 'main') === bu)}
           onSave={handleSave} onClose={() => setModal(false)}
         />
       </Modal>

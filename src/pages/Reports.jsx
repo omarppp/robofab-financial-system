@@ -17,20 +17,26 @@ const REPORT_HEADER_URL = '/brand/logo.png';
 
 export default function Reports() {
   const store = useStore();
+  const bu = store.currentBusinessUnit;
   const reportHeaderUrl = REPORT_HEADER_URL;
   const [tab, setTab] = useState('summary');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [customerFilter, setCustomerFilter] = useState('');
-  const [supplierFilter, setSupplierFilter] = useState('');
 
   const months = getLast6Months();
 
-  // Filtered data
-  const filteredInvoices = filterByDateRange(store.invoices, 'date', dateFrom, dateTo);
-  const filteredPayments = filterByDateRange(store.payments, 'date', dateFrom, dateTo);
-  const filteredReceipts = filterByDateRange(store.receipts, 'date', dateFrom, dateTo);
-  const filteredTransfers = filterByDateRange(store.transfers, 'date', dateFrom, dateTo);
+  // Filter by business unit first, then date range
+  const buInvoices = store.invoices.filter(i => (i.businessUnitId || 'main') === bu);
+  const buPayments = store.payments.filter(p => (p.businessUnitId || 'main') === bu);
+  const buReceipts = store.receipts.filter(r => (r.businessUnitId || 'main') === bu);
+  const buCustomers = store.customers.filter(c => (c.businessUnitId || 'main') === bu);
+  const buSuppliers = store.suppliers.filter(s => (s.businessUnitId || 'main') === bu);
+  const buItems = store.items.filter(i => (i.businessUnitId || 'main') === bu);
+  const buAccounts = store.accounts.filter(a => (a.businessUnitId || 'main') === bu);
+
+  const filteredInvoices = filterByDateRange(buInvoices, 'date', dateFrom, dateTo);
+  const filteredPayments = filterByDateRange(buPayments, 'date', dateFrom, dateTo);
+  const filteredReceipts = filterByDateRange(buReceipts, 'date', dateFrom, dateTo);
 
   const salesInvoices = filteredInvoices.filter(i => i.type === 'sale' && i.status !== 'cancelled' && i.status !== 'draft');
   const purchaseInvoices = filteredInvoices.filter(i => i.type === 'purchase' && i.status !== 'cancelled' && i.status !== 'draft');
@@ -40,12 +46,11 @@ export default function Reports() {
   const totalPurchases = purchaseInvoices.reduce((s, i) => s + (parseFloat(i.total) || 0), 0);
   const totalExpenses = expenseInvoices.reduce((s, i) => s + (parseFloat(i.total) || 0), 0) + filteredPayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
   const totalReceipts = filteredReceipts.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
-  const netProfit = totalSales - totalPurchases - totalExpenses;
 
   // Charts
-  const salesByMonth = months.map(m => store.invoices.filter(i => i.type === 'sale' && i.status !== 'cancelled' && i.status !== 'draft' && new Date(i.date).getMonth() === m.month && new Date(i.date).getFullYear() === m.year).reduce((s, i) => s + (parseFloat(i.total) || 0), 0));
-  const purchasesByMonth = months.map(m => store.invoices.filter(i => i.type === 'purchase' && i.status !== 'cancelled' && new Date(i.date).getMonth() === m.month && new Date(i.date).getFullYear() === m.year).reduce((s, i) => s + (parseFloat(i.total) || 0), 0));
-  const expensesByMonth = months.map(m => store.payments.filter(p => new Date(p.date).getMonth() === m.month && new Date(p.date).getFullYear() === m.year).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0));
+  const salesByMonth = months.map(m => buInvoices.filter(i => i.type === 'sale' && i.status !== 'cancelled' && i.status !== 'draft' && new Date(i.date).getMonth() === m.month && new Date(i.date).getFullYear() === m.year).reduce((s, i) => s + (parseFloat(i.total) || 0), 0));
+  const purchasesByMonth = months.map(m => buInvoices.filter(i => i.type === 'purchase' && i.status !== 'cancelled' && new Date(i.date).getMonth() === m.month && new Date(i.date).getFullYear() === m.year).reduce((s, i) => s + (parseFloat(i.total) || 0), 0));
+  const expensesByMonth = months.map(m => buPayments.filter(p => new Date(p.date).getMonth() === m.month && new Date(p.date).getFullYear() === m.year).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0));
 
   const handlePrint = () => {
     window.print();
@@ -74,7 +79,6 @@ export default function Reports() {
     { key: 'suppliers', label: '🏭 تقرير الموردين' },
     { key: 'inventory', label: '📦 تقرير المخزون' },
     { key: 'accounts', label: '🏦 تقرير الحسابات' },
-    { key: 'pl', label: '💰 الأرباح والخسائر' },
   ];
 
   return (
@@ -115,7 +119,6 @@ export default function Reports() {
               { label: 'إجمالي المشتريات', value: totalPurchases, color: '#d97706' },
               { label: 'إجمالي المصروفات', value: totalExpenses, color: '#dc2626' },
               { label: 'إجمالي المقبوضات', value: totalReceipts, color: '#16a34a' },
-              { label: 'صافي الربح/الخسارة', value: netProfit, color: netProfit >= 0 ? '#16a34a' : '#dc2626' },
             ].map(kpi => (
               <div key={kpi.label} className="card" style={{ padding: 16 }}>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{kpi.label}</div>
@@ -155,20 +158,17 @@ export default function Reports() {
                   { label: 'تكلفة المشتريات', value: totalPurchases, positive: false },
                   { label: 'المصروفات التشغيلية', value: expenseInvoices.reduce((s, i) => s + (parseFloat(i.total) || 0), 0), positive: false },
                   { label: 'سندات الصرف', value: filteredPayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0), positive: false },
+                  { label: 'إجمالي المقبوضات', value: totalReceipts, positive: true },
                 ].map(row => (
                   <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9', fontSize: 14 }}>
                     <span>{row.label}</span>
                     <span className={row.positive ? 'amount-positive font-bold' : 'amount-negative font-bold'}>{formatCurrency(row.value)}</span>
                   </div>
                 ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', fontSize: 16, fontWeight: 800, color: netProfit >= 0 ? '#16a34a' : '#dc2626' }}>
-                  <span>صافي الربح / الخسارة</span>
-                  <span>{formatCurrency(netProfit)}</span>
-                </div>
               </div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>أرصدة الحسابات</div>
-                {store.accounts.filter(a => a.active).map(acc => (
+                {buAccounts.filter(a => a.active).map(acc => (
                   <div key={acc.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
                     <span>{acc.name}</span>
                     <span className={`font-bold ${acc.balance >= 0 ? 'amount-positive' : 'amount-negative'}`}>{formatCurrency(acc.balance)}</span>
@@ -188,7 +188,7 @@ export default function Reports() {
           columns={[
             { label: 'رقم الفاتورة', key: 'number', bold: true },
             { label: 'التاريخ', key: 'date', format: formatDate },
-            { label: 'العميل', key: 'customerId', format: (id) => store.customers.find(c => c.id === id)?.name || '-' },
+            { label: 'العميل', key: 'customerId', format: (id) => buCustomers.find(c => c.id === id)?.name || '-' },
             { label: 'الوصف', key: 'description' },
             { label: 'المجموع الفرعي', key: 'subtotal', format: formatCurrency, number: true },
             { label: 'الخصم', key: 'discount', format: formatCurrency, number: true },
@@ -208,7 +208,7 @@ export default function Reports() {
           columns={[
             { label: 'رقم الفاتورة', key: 'number', bold: true },
             { label: 'التاريخ', key: 'date', format: formatDate },
-            { label: 'المورد', key: 'supplierId', format: (id) => store.suppliers.find(s => s.id === id)?.name || '-' },
+            { label: 'المورد', key: 'supplierId', format: (id) => buSuppliers.find(s => s.id === id)?.name || '-' },
             { label: 'الوصف', key: 'description' },
             { label: 'الإجمالي', key: 'total', format: formatCurrency, number: true, negative: true },
             { label: 'الحالة', key: 'status', format: (s) => <InvStatusBadge s={s} /> },
@@ -247,24 +247,24 @@ export default function Reports() {
                 <tr><th>اسم العميل</th><th>الهاتف</th><th>إجمالي الفواتير</th><th>المدفوع</th><th>المتبقي</th><th>عدد الفواتير</th></tr>
               </thead>
               <tbody>
-                {store.customers.map(c => (
+                {buCustomers.map(c => (
                   <tr key={c.id}>
                     <td className="font-bold">{c.name}</td>
                     <td>{c.phone}</td>
                     <td className="number-cell">{formatCurrency(c.totalInvoices || 0)}</td>
                     <td className="number-cell amount-positive">{formatCurrency(c.totalPaid || 0)}</td>
                     <td className={`number-cell ${(c.balance || 0) > 0 ? 'amount-negative' : 'amount-positive'}`}>{formatCurrency(c.balance || 0)}</td>
-                    <td className="number-cell">{store.invoices.filter(i => i.customerId === c.id).length}</td>
+                    <td className="number-cell">{buInvoices.filter(i => i.customerId === c.id).length}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr style={{ background: '#f8fafc' }}>
                   <td className="font-bold">الإجمالي</td><td />
-                  <td className="number-cell font-bold">{formatCurrency(store.customers.reduce((s, c) => s + (c.totalInvoices || 0), 0))}</td>
-                  <td className="number-cell font-bold amount-positive">{formatCurrency(store.customers.reduce((s, c) => s + (c.totalPaid || 0), 0))}</td>
-                  <td className="number-cell font-bold amount-negative">{formatCurrency(store.customers.reduce((s, c) => s + (c.balance || 0), 0))}</td>
-                  <td className="number-cell font-bold">{store.invoices.filter(i => i.type === 'sale').length}</td>
+                  <td className="number-cell font-bold">{formatCurrency(buCustomers.reduce((s, c) => s + (c.totalInvoices || 0), 0))}</td>
+                  <td className="number-cell font-bold amount-positive">{formatCurrency(buCustomers.reduce((s, c) => s + (c.totalPaid || 0), 0))}</td>
+                  <td className="number-cell font-bold amount-negative">{formatCurrency(buCustomers.reduce((s, c) => s + (c.balance || 0), 0))}</td>
+                  <td className="number-cell font-bold">{buInvoices.filter(i => i.type === 'sale').length}</td>
                 </tr>
               </tfoot>
             </table>
@@ -282,7 +282,7 @@ export default function Reports() {
                 <tr><th>اسم المورد</th><th>الهاتف</th><th>إجمالي المشتريات</th><th>المدفوع</th><th>المتبقي</th></tr>
               </thead>
               <tbody>
-                {store.suppliers.map(s => (
+                {buSuppliers.map(s => (
                   <tr key={s.id}>
                     <td className="font-bold">{s.name}</td>
                     <td>{s.phone}</td>
@@ -295,9 +295,9 @@ export default function Reports() {
               <tfoot>
                 <tr style={{ background: '#f8fafc' }}>
                   <td className="font-bold">الإجمالي</td><td />
-                  <td className="number-cell font-bold">{formatCurrency(store.suppliers.reduce((s, sup) => s + (sup.totalPurchases || 0), 0))}</td>
-                  <td className="number-cell font-bold amount-positive">{formatCurrency(store.suppliers.reduce((s, sup) => s + (sup.totalPaid || 0), 0))}</td>
-                  <td className="number-cell font-bold amount-negative">{formatCurrency(store.suppliers.reduce((s, sup) => s + (sup.balance || 0), 0))}</td>
+                  <td className="number-cell font-bold">{formatCurrency(buSuppliers.reduce((s, sup) => s + (sup.totalPurchases || 0), 0))}</td>
+                  <td className="number-cell font-bold amount-positive">{formatCurrency(buSuppliers.reduce((s, sup) => s + (sup.totalPaid || 0), 0))}</td>
+                  <td className="number-cell font-bold amount-negative">{formatCurrency(buSuppliers.reduce((s, sup) => s + (sup.balance || 0), 0))}</td>
                 </tr>
               </tfoot>
             </table>
@@ -315,7 +315,7 @@ export default function Reports() {
                 <tr><th>الكود</th><th>الصنف</th><th>الفئة</th><th>المستودع</th><th>الكمية</th><th>الوحدة</th><th>سعر الشراء</th><th>سعر البيع</th><th>قيمة المخزون</th><th>الحالة</th></tr>
               </thead>
               <tbody>
-                {store.items.map(item => (
+                {buItems.map(item => (
                   <tr key={item.id}>
                     <td className="text-muted">{item.code}</td>
                     <td className="font-bold">{item.name}</td>
@@ -333,7 +333,7 @@ export default function Reports() {
               <tfoot>
                 <tr style={{ background: '#f8fafc' }}>
                   <td colSpan={8} className="font-bold">إجمالي قيمة المخزون</td>
-                  <td className="number-cell font-bold amount-positive">{formatCurrency(store.items.reduce((s, i) => s + ((i.quantity || 0) * (i.purchasePrice || 0)), 0))}</td>
+                  <td className="number-cell font-bold amount-positive">{formatCurrency(buItems.reduce((s, i) => s + ((i.quantity || 0) * (i.purchasePrice || 0)), 0))}</td>
                   <td />
                 </tr>
               </tfoot>
@@ -352,11 +352,11 @@ export default function Reports() {
                 <tr><th>الحساب</th><th>النوع</th><th>الرصيد</th><th>تعاملات</th></tr>
               </thead>
               <tbody>
-                {store.accounts.filter(a => a.active).map(acc => {
+                {buAccounts.filter(a => a.active).map(acc => {
                   const txnCount = [
                     ...store.transfers.filter(t => t.fromAccountId === acc.id || t.toAccountId === acc.id),
-                    ...store.payments.filter(p => p.accountId === acc.id),
-                    ...store.receipts.filter(r => r.accountId === acc.id),
+                    ...buPayments.filter(p => p.accountId === acc.id),
+                    ...buReceipts.filter(r => r.accountId === acc.id),
                   ].length;
                   return (
                     <tr key={acc.id}>
@@ -371,7 +371,7 @@ export default function Reports() {
               <tfoot>
                 <tr style={{ background: '#f8fafc' }}>
                   <td className="font-bold" colSpan={2}>إجمالي الأرصدة</td>
-                  <td className="number-cell font-bold amount-positive">{formatCurrency(store.accounts.filter(a => a.active && a.balance > 0).reduce((s, a) => s + a.balance, 0))}</td>
+                  <td className="number-cell font-bold amount-positive">{formatCurrency(buAccounts.filter(a => a.active && a.balance > 0).reduce((s, a) => s + a.balance, 0))}</td>
                   <td />
                 </tr>
               </tfoot>
@@ -380,58 +380,6 @@ export default function Reports() {
         </div>
       )}
 
-      {/* P&L Tab */}
-      {tab === 'pl' && (
-        <div>
-          <div className="card mb-4">
-            <div className="card-title" style={{ fontSize: 18, borderBottom: '3px solid var(--primary)' }}>قائمة الأرباح والخسائر</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, padding: '20px 0' }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#16a34a', marginBottom: 16 }}>الإيرادات</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9', fontSize: 14 }}>
-                  <span>إيرادات المبيعات</span>
-                  <span className="amount-positive font-bold">{formatCurrency(totalSales)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9', fontSize: 14 }}>
-                  <span>إيرادات أخرى</span>
-                  <span className="amount-positive font-bold">{formatCurrency(0)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', fontSize: 16, fontWeight: 800, color: '#16a34a', borderTop: '2px solid #16a34a', marginTop: 8 }}>
-                  <span>إجمالي الإيرادات</span>
-                  <span>{formatCurrency(totalSales)}</span>
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#dc2626', marginBottom: 16 }}>المصروفات</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9', fontSize: 14 }}>
-                  <span>تكلفة البضاعة المباعة</span>
-                  <span className="amount-negative font-bold">{formatCurrency(totalPurchases)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9', fontSize: 14 }}>
-                  <span>المصروفات التشغيلية</span>
-                  <span className="amount-negative font-bold">{formatCurrency(expenseInvoices.reduce((s, i) => s + (parseFloat(i.total) || 0), 0))}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9', fontSize: 14 }}>
-                  <span>مدفوعات متنوعة</span>
-                  <span className="amount-negative font-bold">{formatCurrency(filteredPayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0))}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', fontSize: 16, fontWeight: 800, color: '#dc2626', borderTop: '2px solid #dc2626', marginTop: 8 }}>
-                  <span>إجمالي المصروفات</span>
-                  <span>{formatCurrency(totalExpenses + totalPurchases)}</span>
-                </div>
-              </div>
-            </div>
-            <div style={{ background: netProfit >= 0 ? '#dcfce7' : '#fee2e2', padding: 20, borderRadius: 8, marginTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 20, fontWeight: 800, color: netProfit >= 0 ? '#15803d' : '#b91c1c' }}>
-                {netProfit >= 0 ? '✅ صافي الربح' : '❌ صافي الخسارة'}
-              </span>
-              <span style={{ fontSize: 28, fontWeight: 800, color: netProfit >= 0 ? '#15803d' : '#b91c1c' }}>
-                {formatCurrency(Math.abs(netProfit))}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
     </div>
   );

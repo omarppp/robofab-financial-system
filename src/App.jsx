@@ -20,6 +20,8 @@ import Assets from './pages/Assets';
 import Orders from './pages/Orders';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Partners from './pages/Partners';
+import RepairOrders from './pages/RepairOrders';
 
 const SPIN = `@keyframes spin { to { transform: rotate(360deg); } }`;
 
@@ -202,6 +204,8 @@ function AuthenticatedApp() {
       case 'assets':           return <Assets />;
       case 'reports':          return <Reports />;
       case 'settings':         return <Settings />;
+      case 'partners':         return <Partners />;
+      case 'repair-orders':    return <RepairOrders onNavigate={navigate} />;
       default:                 return <Dashboard onNavigate={navigate} />;
     }
   };

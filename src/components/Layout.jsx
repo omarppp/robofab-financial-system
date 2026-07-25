@@ -1,123 +1,185 @@
-import { useState } from 'react';
-import { useStore } from '../store/useStore';
+import { useState, useRef, useEffect } from 'react';
+import { useStore, BUSINESS_UNITS } from '../store/useStore';
+import {
+  Home, FileText, MessageSquare, ShoppingCart, Users, Building2,
+  CreditCard, ArrowLeftRight, DollarSign, Banknote, AlertCircle,
+  Package, Warehouse, Factory, User, BarChart2,
+  Settings, LogOut, Menu, Wrench, Handshake, ChevronDown,
+} from 'lucide-react';
 
-const NAV = [
-  {
-    section: 'الرئيسية',
-    items: [
-      { key: 'dashboard', label: 'لوحة التحكم', icon: <HomeIcon /> },
-    ]
-  },
-  {
-    section: 'المبيعات',
-    items: [
-      { key: 'invoices-sale',  label: 'فواتير المبيعات', icon: <InvoiceIcon /> },
-      { key: 'quotations',     label: 'عروض الأسعار',    icon: <QuoteIcon />   },
-      { key: 'sales-orders',   label: 'أوامر البيع',     icon: <OrderIcon />   },
-      { key: 'customers',      label: 'العملاء',          icon: <PeopleIcon />  },
-    ]
-  },
-  {
-    section: 'المشتريات',
-    items: [
-      { key: 'invoices-purchase', label: 'فواتير الشراء', icon: <ShoppingIcon /> },
-      { key: 'purchase-orders',   label: 'أوامر الشراء',  icon: <OrderIcon />    },
-      { key: 'suppliers',         label: 'الموردون',       icon: <TruckIcon />    },
-    ]
-  },
-  {
-    section: 'الحسابات',
-    items: [
-      { key: 'accounts',          label: 'الحسابات المالية',      icon: <AccountIcon /> },
-      { key: 'transfers',         label: 'التحويلات',              icon: <TransferIcon /> },
-      { key: 'payments',          label: 'المدفوعات',              icon: <PaymentIcon /> },
-      { key: 'receipts',          label: 'المقبوضات',              icon: <ReceiptIcon /> },
-      { key: 'invoices-expense',  label: 'المصروفات',              icon: <ExpenseIcon /> },
-    ]
-  },
-  {
-    section: 'المستودع',
-    items: [
-      { key: 'items',      label: 'الأصناف',       icon: <BoxIcon />        },
-      { key: 'warehouses', label: 'المستودعات',    icon: <WarehouseIcon />  },
-      { key: 'production', label: 'أوامر الإنتاج', icon: <ProductionIcon /> },
-    ]
-  },
-  {
-    section: 'الموارد البشرية',
-    items: [
-      { key: 'employees', label: 'الموظفون', icon: <EmployeeIcon /> },
-    ]
-  },
-  {
-    section: 'الأصول',
-    items: [
-      { key: 'assets', label: 'الأصول الثابتة', icon: <AssetIcon /> },
-    ]
-  },
-  {
-    section: 'التقارير',
-    items: [
-      { key: 'reports', label: 'التقارير المالية', icon: <ReportIcon /> },
-    ]
-  },
-  {
-    section: 'الإعدادات',
-    items: [
-      { key: 'settings', label: 'الإعدادات', icon: <SettingsIcon /> },
-    ]
-  },
+// Full nav items definition
+const ALL_NAV = [
+  { key: 'dashboard',         label: 'لوحة التحكم',       Icon: Home },
+  { key: 'invoices-sale',     label: 'فواتير المبيعات',   Icon: FileText },
+  { key: 'quotations',        label: 'عروض الأسعار',      Icon: MessageSquare },
+  { key: 'sales-orders',      label: 'أوامر البيع',       Icon: ShoppingCart },
+  { key: 'customers',         label: 'العملاء',            Icon: Users },
+  { key: 'invoices-purchase', label: 'فواتير الشراء',     Icon: ShoppingCart },
+  { key: 'purchase-orders',   label: 'أوامر الشراء',      Icon: ShoppingCart },
+  { key: 'suppliers',         label: 'الموردون',           Icon: Building2 },
+  { key: 'accounts',          label: 'الحسابات المالية',  Icon: CreditCard },
+  { key: 'transfers',         label: 'التحويلات',          Icon: ArrowLeftRight },
+  { key: 'payments',          label: 'المدفوعات',          Icon: DollarSign },
+  { key: 'receipts',          label: 'المقبوضات',          Icon: Banknote },
+  { key: 'invoices-expense',  label: 'المصروفات',          Icon: AlertCircle },
+  { key: 'items',             label: 'الأصناف',            Icon: Package },
+  { key: 'warehouses',        label: 'المستودعات',         Icon: Warehouse },
+  { key: 'production',        label: 'أوامر الإنتاج',      Icon: Factory },
+  { key: 'employees',         label: 'الموظفون',           Icon: User },
+  { key: 'assets',            label: 'الأصول الثابتة',    Icon: Building2 },
+  { key: 'repair-orders',     label: 'أوامر الصيانة',     Icon: Wrench },
+  { key: 'reports',           label: 'التقارير المالية',   Icon: BarChart2 },
+  { key: 'settings',          label: 'الإعدادات',          Icon: Settings },
 ];
 
+// Keys visible per business unit
+const BU_NAV_KEYS = {
+  main: [
+    'dashboard',
+    'invoices-sale', 'quotations', 'sales-orders', 'customers',
+    'invoices-purchase', 'purchase-orders', 'suppliers',
+    'accounts', 'transfers', 'payments', 'receipts', 'invoices-expense',
+    'items', 'warehouses', 'production',
+    'employees', 'assets',
+    'reports', 'settings',
+  ],
+  chandeliers: [
+    'dashboard',
+    'invoices-sale', 'customers',
+    'invoices-purchase', 'suppliers',
+    'accounts', 'payments', 'receipts', 'invoices-expense',
+    'items',
+    'reports', 'settings',
+  ],
+  holders: [
+    'dashboard',
+    'invoices-sale', 'customers',
+    'invoices-purchase', 'suppliers',
+    'accounts', 'payments', 'receipts', 'invoices-expense',
+    'items', 'production',
+    'reports', 'settings',
+  ],
+  joystick: [
+    'dashboard',
+    'repair-orders',
+    'invoices-sale', 'customers',
+    'accounts', 'payments', 'receipts', 'invoices-expense',
+    'items',
+    'reports', 'settings',
+  ],
+};
+
+const SECTION_MAP = {
+  dashboard: 'الرئيسية',
+  'invoices-sale': 'المبيعات', quotations: 'المبيعات', 'sales-orders': 'المبيعات', customers: 'المبيعات',
+  'repair-orders': 'الصيانة',
+  'invoices-purchase': 'المشتريات', 'purchase-orders': 'المشتريات', suppliers: 'المشتريات',
+  accounts: 'الحسابات', transfers: 'الحسابات', payments: 'الحسابات', receipts: 'الحسابات', 'invoices-expense': 'الحسابات',
+  items: 'المستودع', warehouses: 'المستودع', production: 'المستودع',
+  employees: 'الموارد البشرية',
+  assets: 'الأصول',
+  reports: 'التقارير',
+  settings: 'الإعدادات',
+};
+
+function buildNav(bu) {
+  const keys = BU_NAV_KEYS[bu] || BU_NAV_KEYS.main;
+  const sections = [];
+  const seen = {};
+  keys.forEach(k => {
+    const item = ALL_NAV.find(n => n.key === k);
+    if (!item) return;
+    const sec = SECTION_MAP[k] || 'أخرى';
+    if (!seen[sec]) { seen[sec] = true; sections.push({ section: sec, items: [] }); }
+    sections[sections.length - 1].items.push(item);
+  });
+  return sections;
+}
+
 export default function Layout({ activePage, onNavigate, authUser, onLogout, children }) {
-  const { sidebarCollapsed, toggleSidebar } = useStore();
-  const [mobileOpen, setMobileOpen]         = useState(false);
+  const { sidebarCollapsed, toggleSidebar, currentBusinessUnit, setBusinessUnit } = useStore();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [buDropOpen, setBuDropOpen] = useState(false);
+  const dropRef = useRef(null);
 
-  const displayName = authUser?.name
-    || authUser?.email?.split('@')[0]
-    || 'مستخدم';
-
+  const displayName = authUser?.name || authUser?.email?.split('@')[0] || 'مستخدم';
   const displayEmail = authUser?.email || '';
+
+  const nav = buildNav(currentBusinessUnit);
+  const currentBuInfo = BUSINESS_UNITS[currentBusinessUnit] || BUSINESS_UNITS.main;
+
+  useEffect(() => {
+    const handler = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setBuDropOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleBuSelect = (bu) => {
+    setBusinessUnit(bu);
+    setBuDropOpen(false);
+    onNavigate('dashboard');
+  };
 
   return (
     <div className="app-layout">
       {/* Mobile overlay */}
-      {mobileOpen && <div className="drawer-overlay" onClick={() => setMobileOpen(false)} />}
+      {mobileOpen && (
+        <div className="drawer-overlay" onClick={() => setMobileOpen(false)} />
+      )}
 
       {/* Sidebar */}
-      <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
+      <div
+        className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}
+      >
+        {/* Logo */}
         <div className="sidebar-logo">
-          <img src="/brand/logo.png" alt="RoboFab" />
+          <div className="sidebar-logo-icon">
+            <BarChart2 size={20} strokeWidth={2} />
+          </div>
           {!sidebarCollapsed && (
             <div className="sidebar-logo-text">
-              نظام RoboFab المالي
-              <span>الإصدار الاحترافي 1.0</span>
+              النظام المالي
+              <span>RoboFab v1.0</span>
             </div>
           )}
         </div>
 
+        {/* Nav */}
         <nav className="sidebar-nav">
-          {NAV.map(section => (
+          {nav.map((section) => (
             <div key={section.section}>
-              <div className="nav-section-label">{section.section}</div>
-              {section.items.map(item => (
+              {!sidebarCollapsed && (
+                <div className="nav-section-label">{section.section}</div>
+              )}
+              {section.items.map(({ key, label, Icon }) => (
                 <div
-                  key={item.key}
-                  className={`nav-item ${activePage === item.key ? 'active' : ''}`}
-                  onClick={() => { onNavigate(item.key); setMobileOpen(false); }}
-                  title={sidebarCollapsed ? item.label : ''}
+                  key={key}
+                  className={`nav-item ${activePage === key ? 'active' : ''}`}
+                  onClick={() => { onNavigate(key); setMobileOpen(false); }}
+                  title={sidebarCollapsed ? label : ''}
                 >
-                  {item.icon}
-                  <span className="nav-item-text">{item.label}</span>
+                  <Icon size={17} strokeWidth={1.75} />
+                  <span className="nav-item-text">{label}</span>
                 </div>
               ))}
             </div>
           ))}
+
+          {/* Partners — always visible for all businesses */}
+          {!sidebarCollapsed && <div className="nav-section-label">الشركاء</div>}
+          <div
+            className={`nav-item ${activePage === 'partners' ? 'active' : ''}`}
+            onClick={() => { onNavigate('partners'); setMobileOpen(false); }}
+            title={sidebarCollapsed ? 'الشركاء' : ''}
+          >
+            <Handshake size={17} strokeWidth={1.75} />
+            <span className="nav-item-text">الشركاء</span>
+          </div>
         </nav>
 
         {!sidebarCollapsed && (
-          <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
-            © {new Date().getFullYear()} نظام RoboFab المالي
+          <div className="sidebar-footer">
+            © {new Date().getFullYear()} RoboFab المالي
           </div>
         )}
       </div>
@@ -127,67 +189,92 @@ export default function Layout({ activePage, onNavigate, authUser, onLogout, chi
         {/* Topbar */}
         <div className="topbar">
           <div className="topbar-left">
-            <button className="toggle-sidebar-btn" onClick={toggleSidebar} title="تبديل القائمة">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
+            <button
+              className="toggle-sidebar-btn"
+              onClick={() => { toggleSidebar(); setMobileOpen(o => !o); }}
+              title="تبديل القائمة"
+            >
+              <Menu size={20} strokeWidth={2} />
             </button>
-            <div>
-              <div className="topbar-title">{getPageTitle(activePage)}</div>
+
+            {/* Business Switcher */}
+            <div ref={dropRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => setBuDropOpen(o => !o)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 12px', borderRadius: 20,
+                  background: currentBuInfo.color + '18',
+                  border: `1.5px solid ${currentBuInfo.color}50`,
+                  color: currentBuInfo.color,
+                  fontSize: 12, fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: currentBuInfo.color, flexShrink: 0 }} />
+                {currentBuInfo.short || currentBuInfo.label}
+                <ChevronDown size={12} />
+              </button>
+              {buDropOpen && (
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: 6,
+                  background: '#fff', borderRadius: 10, padding: 6,
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0',
+                  zIndex: 1000, minWidth: 190,
+                }}>
+                  {Object.entries(BUSINESS_UNITS).map(([bu, { label, color }]) => (
+                    <button
+                      key={bu}
+                      onClick={() => handleBuSelect(bu)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        width: '100%', padding: '9px 12px', border: 'none',
+                        borderRadius: 8,
+                        background: currentBusinessUnit === bu ? color + '15' : 'transparent',
+                        cursor: 'pointer', textAlign: 'right', fontFamily: 'inherit',
+                        fontSize: 13, fontWeight: currentBusinessUnit === bu ? 700 : 500,
+                        color: currentBusinessUnit === bu ? color : '#374151',
+                      }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+
+            <div className="topbar-title">{getPageTitle(activePage)}</div>
           </div>
 
           <div className="topbar-right">
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', direction: 'rtl' }}>
-              {new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            <div className="topbar-date">
+              {new Date().toLocaleDateString('ar-EG', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
             </div>
 
-            <div className="user-badge" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="user-badge">
+              <div className="user-avatar">{displayName.charAt(0).toUpperCase()}</div>
               <div>
-                <div className="user-name" style={{ textAlign: 'right' }}>{displayName}</div>
-                <div className="user-role" style={{ direction: 'ltr', fontSize: 10, color: 'var(--text-muted)' }}>
-                  {displayEmail}
-                </div>
+                <div className="user-name">{displayName}</div>
+                <div className="user-role" style={{ direction: 'ltr', fontSize: 10 }}>{displayEmail}</div>
               </div>
-              <div className="user-avatar">
-                {displayName.charAt(0).toUpperCase()}
-              </div>
-              <button
-                onClick={onLogout}
-                title="تسجيل الخروج"
-                style={{
-                  background: 'none',
-                  border: '1px solid var(--border)',
-                  borderRadius: 6,
-                  padding: '5px 8px',
-                  cursor: 'pointer',
-                  color: 'var(--text-muted)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  fontSize: 12,
-                  transition: 'color 0.2s, border-color 0.2s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.borderColor = 'var(--danger)'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-                  <polyline points="16,17 21,12 16,7"/>
-                  <line x1="21" y1="12" x2="9" y2="12"/>
-                </svg>
-                خروج
-              </button>
             </div>
+
+            <button className="logout-btn" onClick={onLogout} title="تسجيل الخروج">
+              <LogOut size={14} strokeWidth={2} />
+              <span>خروج</span>
+            </button>
           </div>
         </div>
 
         {/* Page content */}
-        <div className="page-content">
-          {children}
-        </div>
+        <div className="page-content">{children}</div>
       </div>
     </div>
   );
@@ -195,47 +282,28 @@ export default function Layout({ activePage, onNavigate, authUser, onLogout, chi
 
 function getPageTitle(page) {
   const titles = {
-    dashboard:          'لوحة التحكم الرئيسية',
-    'invoices-sale':    'فواتير المبيعات',
-    'invoices-purchase':'فواتير الشراء',
-    'invoices-expense': 'فواتير المصروفات',
-    quotations:         'عروض الأسعار',
-    'sales-orders':     'أوامر البيع',
-    'purchase-orders':  'أوامر الشراء',
-    customers:          'إدارة العملاء',
-    suppliers:          'إدارة الموردين',
-    accounts:           'الحسابات المالية',
-    transfers:          'التحويلات بين الحسابات',
-    payments:           'سندات الصرف',
-    receipts:           'سندات القبض',
-    items:              'الأصناف والمخزون',
-    warehouses:         'المستودعات',
-    production:         'أوامر الإنتاج',
-    employees:          'الموظفون',
-    assets:             'الأصول الثابتة',
-    reports:            'التقارير المالية',
-    settings:           'الإعدادات',
+    dashboard:           'لوحة التحكم الرئيسية',
+    'invoices-sale':     'فواتير المبيعات',
+    'invoices-purchase': 'فواتير الشراء',
+    'invoices-expense':  'فواتير المصروفات',
+    quotations:          'عروض الأسعار',
+    'sales-orders':      'أوامر البيع',
+    'purchase-orders':   'أوامر الشراء',
+    customers:           'إدارة العملاء',
+    suppliers:           'إدارة الموردين',
+    accounts:            'الحسابات المالية',
+    transfers:           'التحويلات بين الحسابات',
+    payments:            'سندات الصرف',
+    receipts:            'سندات القبض',
+    items:               'الأصناف والمخزون',
+    warehouses:          'المستودعات',
+    production:          'أوامر الإنتاج',
+    employees:           'الموظفون',
+    assets:              'الأصول الثابتة',
+    reports:             'التقارير المالية',
+    settings:            'الإعدادات',
+    partners:            'الشركاء',
+    'repair-orders':     'أوامر الصيانة',
   };
-  return titles[page] || 'نظام RoboFab المالي';
+  return titles[page] || 'النظام المالي';
 }
-
-// ---- Icons ----
-function HomeIcon()       { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>; }
-function InvoiceIcon()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>; }
-function QuoteIcon()      { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>; }
-function OrderIcon()      { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16,8 20,8 23,11 23,16 16,16 16,8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>; }
-function PeopleIcon()     { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>; }
-function ShoppingIcon()   { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>; }
-function TruckIcon()      { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16,8 20,8 23,11 23,16 16,16 16,8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>; }
-function AccountIcon()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>; }
-function TransferIcon()   { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 014-4h14M7,23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>; }
-function PaymentIcon()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>; }
-function ReceiptIcon()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20,12 20,22 4,22 4,12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>; }
-function ExpenseIcon()    { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>; }
-function BoxIcon()        { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27,6.96 12,12.01 20.73,6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>; }
-function WarehouseIcon()  { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>; }
-function ProductionIcon() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M5.34 18.66l-1.41 1.41M21 12h-2M5 12H3M18.66 18.66l-1.41-1.41M6.75 6.75L5.34 5.34M12 19v2M12 3V1M17.66 6.75l1.41-1.41"/></svg>; }
-function EmployeeIcon()   { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>; }
-function AssetIcon()      { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>; }
-function ReportIcon()     { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>; }
-function SettingsIcon()   { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M5.34 18.66l-1.41 1.41M21 12h-2M5 12H3M18.66 18.66l-1.41-1.41M6.75 6.75L5.34 5.34M12 19v2M12 3V1M17.66 6.75l1.41-1.41"/></svg>; }

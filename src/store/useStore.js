@@ -9,24 +9,44 @@
  *   items             → inventoryItems
  *   warehouseTransfers→ warehouseTransfers
  *   all others        → same name as Zustand key
+ *
+ * Business Unit Architecture:
+ *   currentBusinessUnit is persisted in localStorage.
+ *   All new records get businessUnitId = currentBusinessUnit.
+ *   Old records without businessUnitId default to 'main'.
+ *   Computed methods filter by (x.businessUnitId || 'main') === currentBusinessUnit.
  */
 import { create } from 'zustand';
 import { saveDoc, removeDoc, loadCollection } from '../lib/firestoreService';
 
-// ---- Exported constants (used across pages) ----
+// ---- Exported constants ----
 
 export const ACCOUNT_TYPES = {
-  cash:       'صندوق نقدي',
+  cash:       'خزنة نقدية',
   bank:       'حساب بنكي',
-  expense:    'مصروفات',
-  income:     'إيرادات',
+  income:     'دخل / إيرادات',
+  expense:    'مصروفات تشغيل',
+  transport:  'مصروفات نقل',
   capital:    'رأس المال',
   custody:    'عهدة',
-  receivable: 'مدينون',
-  payable:    'دائنون',
-  transport:  'نقل',
+  receivable: 'ذمم مدينة',
+  payable:    'ذمم دائنة',
   other:      'أخرى',
 };
+
+export const EXPENSE_CATEGORIES = [
+  'خامات ومواد',
+  'مصاريف تشغيل',
+  'نقل وشحن',
+  'صيانة',
+  'رواتب وأجور',
+  'عهدة',
+  'كهرباء ومرافق',
+  'تسويق وإعلان',
+  'مصاريف إدارية',
+  'مشروع عميل',
+  'أخرى',
+];
 
 export const INVOICE_STATUSES = {
   draft:     { label: 'مسودة',          color: 'muted'   },
@@ -58,10 +78,53 @@ export const QUOTATION_STATUSES = {
   expired:  { label: 'منتهية', color: 'muted'   },
 };
 
-// ── Egyptian currency ──────────────────────────────────────────────────────
+export const REPAIR_ORDER_STATUSES = {
+  received:         { label: 'تم الاستلام',             color: 'muted'   },
+  inspecting:       { label: 'قيد الفحص',               color: 'info'    },
+  'pending-approval': { label: 'بانتظار موافقة العميل', color: 'warning' },
+  repairing:        { label: 'قيد الإصلاح',             color: 'purple'  },
+  ready:            { label: 'جاهز للتسليم',            color: 'success' },
+  delivered:        { label: 'تم التسليم',               color: 'muted'   },
+  cancelled:        { label: 'ملغي',                     color: 'danger'  },
+};
+
+export const PARTNER_TRANSACTION_TYPES = {
+  deposit:    { label: 'إضافة مبلغ',   color: 'success', sign: 1  },
+  withdrawal: { label: 'سحب مبلغ',     color: 'danger',  sign: -1 },
+  expense:    { label: 'تسجيل مصروف', color: 'warning', sign: -1 },
+  settlement: { label: 'تسوية رصيد',  color: 'info',    sign: 0  },
+};
+
+export const PARTNER_EXPENSE_CATEGORIES = [
+  'انتقالات', 'مشتريات', 'أدوات', 'صيانة', 'شحن',
+  'تسويق', 'مصروف شخصي', 'مصروف إداري', 'أخرى',
+];
+
+export const BUSINESS_UNITS = {
+  main:        { label: 'النشاط الرئيسي',  short: 'الرئيسي',  color: '#10b981' },
+  chandeliers: { label: 'بيع النجف',        short: 'النجف',    color: '#f59e0b' },
+  holders:     { label: 'الهولدرات',         short: 'هولدرات', color: '#3b82f6' },
+  joystick:    { label: 'سيستم الجويستيك', short: 'جويستيك', color: '#8b5cf6' },
+};
+
+// Per-business invoice prefixes
+const INVOICE_PREFIXES = {
+  main:        { sale: 'INV',    purchase: 'PUR',    expense: 'EXP'    },
+  chandeliers: { sale: 'CH-INV', purchase: 'CH-PUR', expense: 'CH-EXP' },
+  holders:     { sale: 'HD-INV', purchase: 'HD-PUR', expense: 'HD-EXP' },
+  joystick:    { sale: 'JS-INV', purchase: 'JS-INV', expense: 'JS-EXP' },
+};
+
+// Fixed partner records (auto-initialized on first load)
+const DEFAULT_PARTNERS = [
+  { id: 'partner-abdelrahman', name: 'عبدالرحمن محمد'  },
+  { id: 'partner-omar-nady',   name: 'عمر نادي'         },
+  { id: 'partner-omar-hamed',  name: 'عمر حامد'         },
+  { id: 'partner-mahmoud',     name: 'محمود عبدالرازق' },
+];
+
 export const CURRENCY = { code: 'EGP', symbol: 'ج.م', name: 'الجنيه المصري' };
 
-// ── Egyptian payment methods ───────────────────────────────────────────────
 export const PAYMENT_METHODS = {
   cash:     'نقدي',
   bank:     'تحويل بنكي',
@@ -77,39 +140,24 @@ export const PAYMENT_METHODS = {
   other:    'أخرى',
 };
 
-// ── Egyptian banks ─────────────────────────────────────────────────────────
 export const EGYPTIAN_BANKS = [
-  'البنك الأهلي المصري',
-  'بنك مصر',
-  'بنك القاهرة',
-  'البنك التجاري الدولي CIB',
-  'بنك QNB الأهلي',
-  'بنك الإسكندرية',
-  'البنك العربي الإفريقي الدولي',
-  'بنك أبوظبي الأول مصر',
-  'بنك الإمارات دبي الوطني مصر',
-  'بنك فيصل الإسلامي',
-  'المصرف المتحد',
-  'HSBC مصر',
-  'بنك كريدي أجريكول مصر',
-  'بنك قناة السويس',
-  'بنك التعمير والإسكان',
-  'بنك البركة',
-  'بنك أبوظبي التجاري مصر',
-  'بنك الكويت الوطني مصر',
-  'بنك SAIB',
-  'بنك MIDBANK',
-  'بنك أبوظبي الإسلامي مصر',
-  'أخرى',
+  'البنك الأهلي المصري', 'بنك مصر', 'بنك القاهرة',
+  'البنك التجاري الدولي CIB', 'بنك QNB الأهلي', 'بنك الإسكندرية',
+  'البنك العربي الإفريقي الدولي', 'بنك أبوظبي الأول مصر',
+  'بنك الإمارات دبي الوطني مصر', 'بنك فيصل الإسلامي',
+  'المصرف المتحد', 'HSBC مصر', 'بنك كريدي أجريكول مصر',
+  'بنك قناة السويس', 'بنك التعمير والإسكان', 'بنك البركة',
+  'بنك أبوظبي التجاري مصر', 'بنك الكويت الوطني مصر',
+  'بنك SAIB', 'بنك MIDBANK', 'بنك أبوظبي الإسلامي مصر', 'أخرى',
 ];
 
 export const ROLES = {
-  owner:     { label: 'مالك النظام',    permissions: ['all'] },
-  manager:   { label: 'مدير',           permissions: ['all'] },
-  accountant:{ label: 'محاسب',          permissions: ['invoices','accounts','payments','reports','customers','suppliers'] },
-  sales:     { label: 'موظف مبيعات',   permissions: ['invoices','quotations','customers'] },
-  warehouse: { label: 'موظف مستودع',   permissions: ['inventory','warehouses','production'] },
-  viewer:    { label: 'مشاهد',          permissions: ['reports','dashboard'] },
+  owner:     { label: 'مالك النظام',   permissions: ['all'] },
+  manager:   { label: 'مدير',          permissions: ['all'] },
+  accountant:{ label: 'محاسب',         permissions: ['invoices','accounts','payments','reports','customers','suppliers'] },
+  sales:     { label: 'موظف مبيعات',  permissions: ['invoices','quotations','customers'] },
+  warehouse: { label: 'موظف مستودع',  permissions: ['inventory','warehouses','production'] },
+  viewer:    { label: 'مشاهد',         permissions: ['reports','dashboard'] },
 };
 
 // ---- Internal helpers ----
@@ -122,54 +170,70 @@ const genNum = (prefix, list) => {
 };
 const now = () => new Date().toISOString().split('T')[0];
 
+// businessUnitId filter helper
+const buOf = x => x.businessUnitId || 'main';
+
 // ---- Firestore collection name mapping ----
 const FS = {
-  accounts:          'financialAccounts',
-  transfers:         'accountTransfers',
-  items:             'inventoryItems',
-  warehouseTransfers:'warehouseTransfers',
-  customers:         'customers',
-  suppliers:         'suppliers',
-  invoices:          'invoices',
-  quotations:        'quotations',
-  payments:          'payments',
-  receipts:          'receipts',
-  warehouses:        'warehouses',
-  employees:         'employees',
-  productionOrders:  'productionOrders',
-  assets:            'assets',
-  salesOrders:       'salesOrders',
-  purchaseOrders:    'purchaseOrders',
+  accounts:           'financialAccounts',
+  transfers:          'accountTransfers',
+  items:              'inventoryItems',
+  warehouseTransfers: 'warehouseTransfers',
+  customers:          'customers',
+  suppliers:          'suppliers',
+  invoices:           'invoices',
+  quotations:         'quotations',
+  payments:           'payments',
+  receipts:           'receipts',
+  warehouses:         'warehouses',
+  employees:          'employees',
+  productionOrders:   'productionOrders',
+  assets:             'assets',
+  salesOrders:        'salesOrders',
+  purchaseOrders:     'purchaseOrders',
+  partners:           'partners',
+  partnerTransactions:'partnerTransactions',
+  repairOrders:       'repairOrders',
 };
 
-const fsave  = (key, id, data) => saveDoc(FS[key],  id, data).catch(console.error);
+const fsave   = (key, id, data) => saveDoc(FS[key],  id, data).catch(console.error);
 const fremove = (key, id)       => removeDoc(FS[key], id).catch(console.error);
 
 // ---- Store ----
 
 export const useStore = create((set, get) => ({
   // ---- Loading / error state ----
-  dataLoaded:   false,
-  loadingData:  false,
-  dataError:    null,   // Arabic error message when Firestore load fails
+  dataLoaded:  false,
+  loadingData: false,
+  dataError:   null,
 
-  // ---- Collections (start empty; hydrated from Firestore on login) ----
-  accounts:          [],
-  customers:         [],
-  suppliers:         [],
-  items:             [],
-  warehouses:        [],
-  employees:         [],
-  invoices:          [],
-  quotations:        [],
-  payments:          [],
-  receipts:          [],
-  transfers:         [],
-  warehouseTransfers:[],
-  productionOrders:  [],
-  assets:            [],
-  salesOrders:       [],
-  purchaseOrders:    [],
+  // ---- Business unit (persisted in localStorage) ----
+  currentBusinessUnit: localStorage.getItem('bu') || 'main',
+  setBusinessUnit: (unit) => {
+    set({ currentBusinessUnit: unit });
+    localStorage.setItem('bu', unit);
+  },
+
+  // ---- Collections ----
+  accounts:           [],
+  customers:          [],
+  suppliers:          [],
+  items:              [],
+  warehouses:         [],
+  employees:          [],
+  invoices:           [],
+  quotations:         [],
+  payments:           [],
+  receipts:           [],
+  transfers:          [],
+  warehouseTransfers: [],
+  productionOrders:   [],
+  assets:             [],
+  salesOrders:        [],
+  purchaseOrders:     [],
+  partners:           [],
+  partnerTransactions:[],
+  repairOrders:       [],
 
   // ---- UI state ----
   sidebarCollapsed: false,
@@ -181,11 +245,10 @@ export const useStore = create((set, get) => ({
     const DEV = import.meta.env.DEV;
     set({ loadingData: true, dataError: null });
 
-    // Dev helper: wraps loadCollection with before/after logs
     const loadLog = async (storeKey, colName) => {
-      if (DEV) console.log(`[Store] Loading collection: ${colName}`);
+      if (DEV) console.log(`[Store] Loading: ${colName}`);
       const data = await loadCollection(colName);
-      if (DEV) console.log(`[Store] ✓ ${colName} — ${data.length} document(s)`);
+      if (DEV) console.log(`[Store] ✓ ${colName} — ${data.length} docs`);
       return data;
     };
 
@@ -195,34 +258,49 @@ export const useStore = create((set, get) => ({
         accounts, customers, suppliers, items, warehouses, employees,
         invoices, quotations, payments, receipts, transfers,
         warehouseTransfers, productionOrders, assets, salesOrders, purchaseOrders,
+        partners, partnerTransactions, repairOrders,
       ] = await Promise.all([
-        loadLog('accounts',          FS.accounts),
-        loadLog('customers',         FS.customers),
-        loadLog('suppliers',         FS.suppliers),
-        loadLog('items',             FS.items),
-        loadLog('warehouses',        FS.warehouses),
-        loadLog('employees',         FS.employees),
-        loadLog('invoices',          FS.invoices),
-        loadLog('quotations',        FS.quotations),
-        loadLog('payments',          FS.payments),
-        loadLog('receipts',          FS.receipts),
-        loadLog('transfers',         FS.transfers),
-        loadLog('warehouseTransfers',FS.warehouseTransfers),
-        loadLog('productionOrders',  FS.productionOrders),
-        loadLog('assets',            FS.assets),
-        loadLog('salesOrders',       FS.salesOrders),
-        loadLog('purchaseOrders',    FS.purchaseOrders),
+        loadLog('accounts',           FS.accounts),
+        loadLog('customers',          FS.customers),
+        loadLog('suppliers',          FS.suppliers),
+        loadLog('items',              FS.items),
+        loadLog('warehouses',         FS.warehouses),
+        loadLog('employees',          FS.employees),
+        loadLog('invoices',           FS.invoices),
+        loadLog('quotations',         FS.quotations),
+        loadLog('payments',           FS.payments),
+        loadLog('receipts',           FS.receipts),
+        loadLog('transfers',          FS.transfers),
+        loadLog('warehouseTransfers', FS.warehouseTransfers),
+        loadLog('productionOrders',   FS.productionOrders),
+        loadLog('assets',             FS.assets),
+        loadLog('salesOrders',        FS.salesOrders),
+        loadLog('purchaseOrders',     FS.purchaseOrders),
+        loadLog('partners',           FS.partners),
+        loadLog('partnerTransactions',FS.partnerTransactions),
+        loadLog('repairOrders',       FS.repairOrders),
       ]);
-      if (DEV) console.log('[Store] ✓ All collections loaded successfully');
+
+      if (DEV) console.log('[Store] ✓ All collections loaded');
+
+      // Auto-initialize 4 default partners if none exist
+      let loadedPartners = partners;
+      if (partners.length === 0) {
+        const ts = now();
+        loadedPartners = DEFAULT_PARTNERS.map(p => ({ ...p, createdAt: ts, notes: '' }));
+        loadedPartners.forEach(p => saveDoc(FS.partners, p.id, p).catch(console.error));
+        if (DEV) console.log('[Store] Partners auto-initialized');
+      }
+
       set({
         accounts, customers, suppliers, items, warehouses, employees,
         invoices, quotations, payments, receipts, transfers,
         warehouseTransfers, productionOrders, assets, salesOrders, purchaseOrders,
+        partners: loadedPartners, partnerTransactions, repairOrders,
         dataLoaded: true, loadingData: false, dataError: null,
       });
     } catch (err) {
       console.error('[Store] loadFromFirestore failed:', err);
-      // Determine a clear Arabic error message
       const code = err?.code || '';
       let dataError;
       if (code === 'permission-denied') {
@@ -232,26 +310,25 @@ export const useStore = create((set, get) => ({
       } else {
         dataError = `حدث خطأ أثناء تحميل البيانات. ${code ? `(${code})` : ''}`;
       }
-      // IMPORTANT: set dataLoaded: true so the app never stays on the loading screen
       set({ loadingData: false, dataLoaded: true, dataError });
     }
   },
 
-  retryLoad: () => {
-    set({ dataLoaded: false, dataError: null, loadingData: false });
-  },
+  retryLoad: () => set({ dataLoaded: false, dataError: null, loadingData: false }),
 
   clearStore: () => set({
     accounts: [], customers: [], suppliers: [], items: [], warehouses: [],
     employees: [], invoices: [], quotations: [], payments: [], receipts: [],
     transfers: [], warehouseTransfers: [], productionOrders: [], assets: [],
     salesOrders: [], purchaseOrders: [],
+    partners: [], partnerTransactions: [], repairOrders: [],
     dataLoaded: false, loadingData: false, dataError: null,
   }),
 
   // ---- ACCOUNTS ----
   addAccount: (data) => {
-    const account = { ...data, id: genId(), balance: parseFloat(data.balance) || 0, createdAt: now(), active: true };
+    const bu = get().currentBusinessUnit;
+    const account = { ...data, id: genId(), balance: parseFloat(data.balance) || 0, createdAt: now(), active: true, businessUnitId: bu };
     set(s => ({ accounts: [...s.accounts, account] }));
     fsave('accounts', account.id, account);
     return account;
@@ -290,7 +367,6 @@ export const useStore = create((set, get) => ({
       }),
     }));
     fsave('transfers', transfer.id, transfer);
-    // Persist updated account balances
     const from = get().accounts.find(a => a.id === data.fromAccountId);
     const to   = get().accounts.find(a => a.id === data.toAccountId);
     if (from) fsave('accounts', from.id, from);
@@ -300,7 +376,8 @@ export const useStore = create((set, get) => ({
 
   // ---- CUSTOMERS ----
   addCustomer: (data) => {
-    const customer = { ...data, id: genId(), balance: 0, totalInvoices: 0, totalPaid: 0, active: true, createdAt: now() };
+    const bu = get().currentBusinessUnit;
+    const customer = { ...data, id: genId(), balance: 0, totalInvoices: 0, totalPaid: 0, active: true, createdAt: now(), businessUnitId: bu };
     set(s => ({ customers: [...s.customers, customer] }));
     fsave('customers', customer.id, customer);
     return customer;
@@ -317,7 +394,8 @@ export const useStore = create((set, get) => ({
 
   // ---- SUPPLIERS ----
   addSupplier: (data) => {
-    const supplier = { ...data, id: genId(), balance: 0, totalPurchases: 0, totalPaid: 0, active: true, createdAt: now() };
+    const bu = get().currentBusinessUnit;
+    const supplier = { ...data, id: genId(), balance: 0, totalPurchases: 0, totalPaid: 0, active: true, createdAt: now(), businessUnitId: bu };
     set(s => ({ suppliers: [...s.suppliers, supplier] }));
     fsave('suppliers', supplier.id, supplier);
     return supplier;
@@ -334,7 +412,8 @@ export const useStore = create((set, get) => ({
 
   // ---- ITEMS ----
   addItem: (data) => {
-    const item = { ...data, id: genId(), code: data.code || genNum('ITM', get().items), quantity: parseFloat(data.quantity) || 0, active: true, createdAt: now() };
+    const bu = get().currentBusinessUnit;
+    const item = { ...data, id: genId(), code: data.code || genNum('ITM', get().items), quantity: parseFloat(data.quantity) || 0, active: true, createdAt: now(), businessUnitId: bu };
     set(s => ({ items: [...s.items, item] }));
     fsave('items', item.id, item);
     return item;
@@ -370,7 +449,6 @@ export const useStore = create((set, get) => ({
     set(s => ({ warehouses: s.warehouses.filter(w => w.id !== id) }));
     fremove('warehouses', id);
   },
-
   addWarehouseTransfer: (data) => {
     const t = { ...data, id: genId(), number: genNum('WTF', get().warehouseTransfers), createdAt: now(), date: data.date || now() };
     set(s => ({
@@ -382,10 +460,8 @@ export const useStore = create((set, get) => ({
       }),
     }));
     fsave('warehouseTransfers', t.id, t);
-    // Persist affected item
     const srcItem = get().items.find(i => i.id === data.itemId && i.warehouseId === data.fromWarehouseId);
     if (srcItem) fsave('items', srcItem.id, srcItem);
-    // Adjust or create destination item
     const destItem = get().items.find(i => i.id === data.itemId && i.warehouseId === data.toWarehouseId);
     if (destItem) {
       get().adjustItemQuantity(destItem.id, parseFloat(data.quantity));
@@ -415,16 +491,19 @@ export const useStore = create((set, get) => ({
 
   // ---- INVOICES ----
   addInvoice: (data) => {
+    const bu = get().currentBusinessUnit;
+    const prefixes = INVOICE_PREFIXES[bu] || INVOICE_PREFIXES.main;
+    const prefix = prefixes[data.type] || 'INV';
+    // Numbering is per business unit + type for correct sequences
+    const buTypeInvoices = get().invoices.filter(i => buOf(i) === bu && i.type === data.type);
     const invoice = {
       ...data, id: genId(),
-      number: genNum(
-        data.type === 'sale' ? 'INV' : data.type === 'purchase' ? 'PUR' : 'EXP',
-        get().invoices.filter(i => i.type === data.type)
-      ),
+      number:     genNum(prefix, buTypeInvoices),
       status:     data.status || 'draft',
       paidAmount: 0,
       createdAt:  now(),
       date:       data.date || now(),
+      businessUnitId: bu,
     };
     set(s => ({ invoices: [...s.invoices, invoice] }));
     fsave('invoices', invoice.id, invoice);
@@ -475,7 +554,8 @@ export const useStore = create((set, get) => ({
 
   // ---- QUOTATIONS ----
   addQuotation: (data) => {
-    const q = { ...data, id: genId(), number: genNum('QUO', get().quotations), status: 'open', createdAt: now(), date: data.date || now() };
+    const bu = get().currentBusinessUnit;
+    const q = { ...data, id: genId(), number: genNum('QUO', get().quotations.filter(i => buOf(i) === bu)), status: 'open', createdAt: now(), date: data.date || now(), businessUnitId: bu };
     set(s => ({ quotations: [...s.quotations, q] }));
     fsave('quotations', q.id, q);
     return q;
@@ -499,7 +579,8 @@ export const useStore = create((set, get) => ({
 
   // ---- PAYMENTS ----
   addPayment: (data) => {
-    const payment = { ...data, id: genId(), number: genNum('PAY', get().payments), amount: parseFloat(data.amount), createdAt: now(), date: data.date || now() };
+    const bu = get().currentBusinessUnit;
+    const payment = { ...data, id: genId(), number: genNum('PAY', get().payments), amount: parseFloat(data.amount), createdAt: now(), date: data.date || now(), businessUnitId: bu };
     set(s => ({ payments: [...s.payments, payment] }));
     fsave('payments', payment.id, payment);
     get().adjustAccountBalance(data.accountId, -parseFloat(data.amount));
@@ -525,7 +606,8 @@ export const useStore = create((set, get) => ({
 
   // ---- RECEIPTS ----
   addReceipt: (data) => {
-    const receipt = { ...data, id: genId(), number: genNum('REC', get().receipts), amount: parseFloat(data.amount), createdAt: now(), date: data.date || now() };
+    const bu = get().currentBusinessUnit;
+    const receipt = { ...data, id: genId(), number: genNum('REC', get().receipts), amount: parseFloat(data.amount), createdAt: now(), date: data.date || now(), businessUnitId: bu };
     set(s => ({ receipts: [...s.receipts, receipt] }));
     fsave('receipts', receipt.id, receipt);
     get().adjustAccountBalance(data.accountId, parseFloat(data.amount));
@@ -545,7 +627,8 @@ export const useStore = create((set, get) => ({
 
   // ---- SALES & PURCHASE ORDERS ----
   addSalesOrder: (data) => {
-    const o = { ...data, id: genId(), number: genNum('SO', get().salesOrders), status: 'new', createdAt: now(), date: data.date || now() };
+    const bu = get().currentBusinessUnit;
+    const o = { ...data, id: genId(), number: genNum('SO', get().salesOrders.filter(i => buOf(i) === bu)), status: 'new', createdAt: now(), date: data.date || now(), businessUnitId: bu };
     set(s => ({ salesOrders: [...s.salesOrders, o] }));
     fsave('salesOrders', o.id, o);
     return o;
@@ -556,7 +639,8 @@ export const useStore = create((set, get) => ({
     if (updated) fsave('salesOrders', id, updated);
   },
   addPurchaseOrder: (data) => {
-    const o = { ...data, id: genId(), number: genNum('PO', get().purchaseOrders), status: 'new', createdAt: now(), date: data.date || now() };
+    const bu = get().currentBusinessUnit;
+    const o = { ...data, id: genId(), number: genNum('PO', get().purchaseOrders.filter(i => buOf(i) === bu)), status: 'new', createdAt: now(), date: data.date || now(), businessUnitId: bu };
     set(s => ({ purchaseOrders: [...s.purchaseOrders, o] }));
     fsave('purchaseOrders', o.id, o);
     return o;
@@ -569,7 +653,8 @@ export const useStore = create((set, get) => ({
 
   // ---- PRODUCTION ORDERS ----
   addProductionOrder: (data) => {
-    const o = { ...data, id: genId(), number: genNum('PRD', get().productionOrders), status: 'new', createdAt: now(), date: data.date || now() };
+    const bu = get().currentBusinessUnit;
+    const o = { ...data, id: genId(), number: genNum('PRD', get().productionOrders.filter(i => buOf(i) === bu)), status: 'new', createdAt: now(), date: data.date || now(), businessUnitId: bu };
     set(s => ({ productionOrders: [...s.productionOrders, o] }));
     fsave('productionOrders', o.id, o);
     return o;
@@ -607,15 +692,100 @@ export const useStore = create((set, get) => ({
     fremove('assets', id);
   },
 
-  // ---- COMPUTED / DERIVED ----
-  getTotalSales:      () => get().invoices.filter(i => i.type === 'sale'     && i.status !== 'cancelled' && i.status !== 'draft').reduce((s, i) => s + (parseFloat(i.total) || 0), 0),
-  getTotalPurchases:  () => get().invoices.filter(i => i.type === 'purchase' && i.status !== 'cancelled' && i.status !== 'draft').reduce((s, i) => s + (parseFloat(i.total) || 0), 0),
-  getTotalExpenses:   () => get().invoices.filter(i => i.type === 'expense'  && i.status !== 'cancelled').reduce((s, i) => s + (parseFloat(i.total) || 0), 0) + get().payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0),
-  getTotalReceipts:   () => get().receipts.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0),
-  getTotalPayments:   () => get().payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0),
-  getCashBalance:     () => get().accounts.filter(a => a.type === 'cash').reduce((s, a) => s + (a.balance || 0), 0),
-  getBankBalance:     () => get().accounts.filter(a => a.type === 'bank').reduce((s, a) => s + (a.balance || 0), 0),
-  getStockValue:      () => get().items.reduce((s, i) => s + ((i.quantity || 0) * (i.purchasePrice || 0)), 0),
-  getCustomerReceivables: () => get().customers.reduce((s, c) => s + (c.balance || 0), 0),
-  getSupplierPayables:    () => get().suppliers.reduce((s, sp) => s + (sp.balance || 0), 0),
+  // ---- PARTNERS ----
+  addPartnerTransaction: (data) => {
+    const id = genId();
+    const record = { id, ...data, amount: parseFloat(data.amount) || 0, status: 'active', createdAt: now() };
+    set(s => ({ partnerTransactions: [...s.partnerTransactions, record] }));
+    fsave('partnerTransactions', id, record);
+    return id;
+  },
+  cancelPartnerTransaction: (id) => {
+    set(s => ({ partnerTransactions: s.partnerTransactions.map(t => t.id === id ? { ...t, status: 'cancelled' } : t) }));
+    fsave('partnerTransactions', id, { status: 'cancelled' });
+  },
+
+  // ---- REPAIR ORDERS (Joystick) ----
+  addRepairOrder: (data) => {
+    const bu = get().currentBusinessUnit;
+    const buRepairs = get().repairOrders.filter(r => buOf(r) === bu);
+    const id = genId();
+    const record = {
+      id,
+      number:        genNum('JS-REP', buRepairs),
+      ...data,
+      status:        data.status || 'received',
+      businessUnitId: bu,
+      createdAt:     now(),
+      receivedDate:  data.receivedDate || now(),
+    };
+    set(s => ({ repairOrders: [...s.repairOrders, record] }));
+    fsave('repairOrders', id, record);
+    return id;
+  },
+  updateRepairOrder: (id, changes) => {
+    set(s => ({ repairOrders: s.repairOrders.map(r => r.id === id ? { ...r, ...changes } : r) }));
+    const updated = get().repairOrders.find(r => r.id === id);
+    if (updated) fsave('repairOrders', id, updated);
+  },
+  deleteRepairOrder: (id) => {
+    set(s => ({ repairOrders: s.repairOrders.filter(r => r.id !== id) }));
+    fremove('repairOrders', id);
+  },
+
+  // ---- COMPUTED / DERIVED (all filtered by currentBusinessUnit) ----
+  getTotalSales: () => {
+    const bu = get().currentBusinessUnit;
+    return get().invoices.filter(i => buOf(i) === bu && i.type === 'sale' && i.status !== 'cancelled' && i.status !== 'draft').reduce((s, i) => s + (parseFloat(i.total) || 0), 0);
+  },
+  getTotalPurchases: () => {
+    const bu = get().currentBusinessUnit;
+    return get().invoices.filter(i => buOf(i) === bu && i.type === 'purchase' && i.status !== 'cancelled' && i.status !== 'draft').reduce((s, i) => s + (parseFloat(i.total) || 0), 0);
+  },
+  getTotalExpenses: () => {
+    const bu = get().currentBusinessUnit;
+    return get().invoices.filter(i => buOf(i) === bu && i.type === 'expense' && i.status !== 'cancelled').reduce((s, i) => s + (parseFloat(i.total) || 0), 0)
+         + get().payments.filter(p => buOf(p) === bu).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+  },
+  getTotalReceipts: () => {
+    const bu = get().currentBusinessUnit;
+    return get().receipts.filter(r => buOf(r) === bu).reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+  },
+  getTotalPayments: () => {
+    const bu = get().currentBusinessUnit;
+    return get().payments.filter(p => buOf(p) === bu).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+  },
+  getCashBalance: () => {
+    const bu = get().currentBusinessUnit;
+    return get().accounts.filter(a => buOf(a) === bu && a.type === 'cash').reduce((s, a) => s + (a.balance || 0), 0);
+  },
+  getBankBalance: () => {
+    const bu = get().currentBusinessUnit;
+    return get().accounts.filter(a => buOf(a) === bu && a.type === 'bank').reduce((s, a) => s + (a.balance || 0), 0);
+  },
+  getStockValue: () => {
+    const bu = get().currentBusinessUnit;
+    return get().items.filter(i => buOf(i) === bu).reduce((s, i) => s + ((i.quantity || 0) * (i.purchasePrice || 0)), 0);
+  },
+  getCustomerReceivables: () => {
+    const bu = get().currentBusinessUnit;
+    return get().customers.filter(c => buOf(c) === bu).reduce((s, c) => s + (c.balance || 0), 0);
+  },
+  getSupplierPayables: () => {
+    const bu = get().currentBusinessUnit;
+    return get().suppliers.filter(sp => buOf(sp) === bu).reduce((s, sp) => s + (sp.balance || 0), 0);
+  },
+
+  // Partner balance calculation (pure, no stored balance)
+  getPartnerBalance: (partnerId) => {
+    return get().partnerTransactions
+      .filter(t => t.partnerId === partnerId && t.status === 'active')
+      .reduce((bal, t) => {
+        if (t.type === 'deposit')    return bal + (parseFloat(t.amount) || 0);
+        if (t.type === 'withdrawal') return bal - (parseFloat(t.amount) || 0);
+        if (t.type === 'expense')    return bal - (parseFloat(t.amount) || 0);
+        if (t.type === 'settlement') return (parseFloat(t.amount) || 0);
+        return bal;
+      }, 0);
+  },
 }));

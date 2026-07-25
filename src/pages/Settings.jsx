@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../lib/AuthContext';
-import { useStore, ROLES } from '../store/useStore';
+import { useStore, ROLES, BUSINESS_UNITS } from '../store/useStore';
 import { toast, Spinner } from '../components/UI';
 
 const DEFAULT_COMPANY = {
@@ -16,11 +16,25 @@ const DEFAULT_COMPANY = {
   invoiceTerms: 'يُرجى الدفع خلال 30 يوماً من تاريخ الفاتورة',
 };
 
+const DEFAULT_BU_SETTINGS = (bu) => ({
+  printName: BUSINESS_UNITS[bu]?.label || '',
+  phone: '',
+  address: '',
+  salePre: { main: 'INV', chandeliers: 'CH-INV', holders: 'HD-INV', joystick: 'JS-INV' }[bu] || 'INV',
+  purchasePre: { main: 'PUR', chandeliers: 'CH-PUR', holders: 'HD-PUR', joystick: 'JS-INV' }[bu] || 'PUR',
+  expensePre: { main: 'EXP', chandeliers: 'CH-EXP', holders: 'HD-EXP', joystick: 'JS-EXP' }[bu] || 'EXP',
+  invoiceNotes: '',
+});
+
 export default function Settings() {
   const { user, userProfile } = useAuth();
   const store = useStore();
   const [activeTab, setActiveTab] = useState('company');
   const [companyForm, setCompanyForm] = useState(DEFAULT_COMPANY);
+  const [buTab, setBuTab] = useState('main');
+  const [buSettings, setBuSettings] = useState(() =>
+    Object.keys(BUSINESS_UNITS).reduce((acc, bu) => ({ ...acc, [bu]: DEFAULT_BU_SETTINGS(bu) }), {})
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -29,7 +43,17 @@ export default function Settings() {
       try {
         const snap = await getDoc(doc(db, 'settings', 'company'));
         if (snap.exists()) {
-          setCompanyForm(f => ({ ...f, ...snap.data() }));
+          const data = snap.data();
+          setCompanyForm(f => ({ ...f, ...data }));
+          if (data.businessSettings) {
+            setBuSettings(prev => {
+              const merged = { ...prev };
+              Object.keys(BUSINESS_UNITS).forEach(bu => {
+                if (data.businessSettings[bu]) merged[bu] = { ...prev[bu], ...data.businessSettings[bu] };
+              });
+              return merged;
+            });
+          }
         }
       } catch (e) {
         console.error('[Settings] load error:', e);
@@ -43,8 +67,8 @@ export default function Settings() {
   const handleSaveCompany = async () => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'settings', 'company'), companyForm);
-      toast.success('تم حفظ بيانات الشركة بنجاح');
+      await setDoc(doc(db, 'settings', 'company'), { ...companyForm, businessSettings: buSettings });
+      toast.success('تم حفظ الإعدادات بنجاح');
     } catch (e) {
       console.error('[Settings] save error:', e);
       toast.error('فشل الحفظ: ' + (e?.message || 'خطأ غير معروف'));
@@ -54,8 +78,10 @@ export default function Settings() {
   };
 
   const setF = (k, v) => setCompanyForm(f => ({ ...f, [k]: v }));
+  const setBuF = (bu, k, v) => setBuSettings(s => ({ ...s, [bu]: { ...s[bu], [k]: v } }));
 
   const tabs = [
+    { key: 'business', label: '🏬 الوحدات التجارية' },
     { key: 'company',  label: '🏢 بيانات الشركة' },
     { key: 'invoice',  label: '📄 إعدادات الفواتير' },
     { key: 'system',   label: '⚙️ النظام' },
@@ -85,6 +111,50 @@ export default function Settings() {
           </button>
         ))}
       </div>
+
+      {/* ── Business Units Settings ── */}
+      {activeTab === 'business' && (
+        <div className="card">
+          <div className="card-title">إعدادات الوحدات التجارية</div>
+          <div className="tabs" style={{ marginBottom: 20 }}>
+            {Object.entries(BUSINESS_UNITS).map(([key, { label, color }]) => (
+              <button key={key} className={`tab-btn ${buTab === key ? 'active' : ''}`} onClick={() => setBuTab(key)}
+                style={buTab === key ? { borderColor: color, color } : {}}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {Object.keys(BUSINESS_UNITS).map(bu => buTab !== bu ? null : (
+            <div key={bu} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {[
+                { label: 'اسم النشاط للطباعة', key: 'printName', placeholder: BUSINESS_UNITS[bu].label },
+                { label: 'رقم الهاتف (للفاتورة)', key: 'phone', placeholder: '01xxxxxxxxx' },
+                { label: 'بادئة فاتورة المبيعات', key: 'salePre', placeholder: 'INV' },
+                { label: 'بادئة فاتورة الشراء', key: 'purchasePre', placeholder: 'PUR' },
+                { label: 'بادئة المصروفات', key: 'expensePre', placeholder: 'EXP' },
+              ].map(field => (
+                <div key={field.key} className="form-group">
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{field.label}</label>
+                  <input className="form-control" value={buSettings[bu][field.key] || ''} onChange={e => setBuF(bu, field.key, e.target.value)} placeholder={field.placeholder} />
+                </div>
+              ))}
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>العنوان (للفاتورة)</label>
+                <input className="form-control" value={buSettings[bu].address || ''} onChange={e => setBuF(bu, 'address', e.target.value)} placeholder="العنوان" />
+              </div>
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>ملاحظات الفاتورة (تذييل)</label>
+                <textarea className="form-control" value={buSettings[bu].invoiceNotes || ''} onChange={e => setBuF(bu, 'invoiceNotes', e.target.value)} rows={2} placeholder="شكراً لتعاملكم معنا" />
+              </div>
+            </div>
+          ))}
+          <div style={{ marginTop: 20 }}>
+            <button className="btn btn-primary" onClick={handleSaveCompany} disabled={saving}>
+              {saving ? '⏳ جاري الحفظ...' : '💾 حفظ الإعدادات'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Company Data ── */}
       {activeTab === 'company' && (

@@ -1,12 +1,36 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 
-// ---- Toast System ----
+// ── Toast System ──────────────────────────────────────────
 let addToastFn = null;
 export const toast = {
   success: (msg) => addToastFn?.('success', msg),
-  error: (msg) => addToastFn?.('error', msg),
+  error:   (msg) => addToastFn?.('error',   msg),
   warning: (msg) => addToastFn?.('warning', msg),
-  info: (msg) => addToastFn?.('info', msg),
+  info:    (msg) => addToastFn?.('info',    msg),
+};
+
+const TOAST_ICONS = {
+  success: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+      <polyline points="20,6 9,17 4,12"/>
+    </svg>
+  ),
+  error: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+      <path d="M18 6L6 18M6 6l12 12"/>
+    </svg>
+  ),
+  warning: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+  ),
+  info: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+  ),
 };
 
 export function ToastContainer() {
@@ -18,21 +42,22 @@ export function ToastContainer() {
       setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3500);
     };
   }, []);
-  const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
   return (
     <div className="toast-container">
       {toasts.map(t => (
         <div key={t.id} className={`toast toast-${t.type}`}>
-          <span>{icons[t.type]}</span> {t.message}
+          {TOAST_ICONS[t.type]}
+          <span>{t.message}</span>
         </div>
       ))}
     </div>
   );
 }
 
-// ---- Confirm Dialog ----
+// ── Confirm Dialog ─────────────────────────────────────────
 let confirmFn = null;
-export const confirm = (title, message) => new Promise(resolve => confirmFn?.({ title, message, resolve }));
+export const confirm = (title, message) =>
+  new Promise(resolve => confirmFn?.({ title, message, resolve }));
 
 export function ConfirmProvider() {
   const [state, setState] = useState(null);
@@ -44,7 +69,12 @@ export function ConfirmProvider() {
   return (
     <div className="confirm-overlay" onClick={() => handle(false)}>
       <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
-        <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+        <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.20)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" width="26" height="26">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
         <h3>{state.title}</h3>
         <p>{state.message}</p>
         <div className="btn-row">
@@ -56,7 +86,7 @@ export function ConfirmProvider() {
   );
 }
 
-// ---- Modal ----
+// ── Modal ──────────────────────────────────────────────────
 export function Modal({ open, onClose, title, children, size = '', footer }) {
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose?.(); };
@@ -70,7 +100,9 @@ export function Modal({ open, onClose, title, children, size = '', footer }) {
         <div className="modal-header">
           <span className="modal-title">{title}</span>
           <button className="modal-close" onClick={onClose}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
           </button>
         </div>
         <div className="modal-body">{children}</div>
@@ -80,14 +112,14 @@ export function Modal({ open, onClose, title, children, size = '', footer }) {
   );
 }
 
-// ---- Status Badge ----
+// ── Status Badge ───────────────────────────────────────────
 export function StatusBadge({ status, map }) {
   if (!map || !map[status]) return <span className="badge badge-muted">{status}</span>;
   const { label, color } = map[status];
   return <span className={`badge badge-${color}`}>{label}</span>;
 }
 
-// ---- Empty State ----
+// ── Empty State ────────────────────────────────────────────
 export function EmptyState({ icon, title, message, action }) {
   return (
     <div className="empty-state">
@@ -101,19 +133,24 @@ export function EmptyState({ icon, title, message, action }) {
   );
 }
 
-// ---- Search Input ----
+// ── Search Input ───────────────────────────────────────────
 export function SearchInput({ value, onChange, placeholder = 'بحث...' }) {
   return (
     <div className="search-input-wrap">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
       </svg>
-      <input className="form-control" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
+      <input
+        className="form-control"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
     </div>
   );
 }
 
-// ---- Select ----
+// ── Select ─────────────────────────────────────────────────
 export function Select({ value, onChange, options, placeholder = 'اختر...', className = '' }) {
   return (
     <select className={`form-control ${className}`} value={value} onChange={e => onChange(e.target.value)}>
@@ -123,37 +160,44 @@ export function Select({ value, onChange, options, placeholder = 'اختر...', 
   );
 }
 
-// ---- KPI Card ----
+// ── KPI Card ───────────────────────────────────────────────
 export function KpiCard({ label, value, color = 'blue', icon, sub }) {
   return (
     <div className={`kpi-card ${color}`}>
       {icon && <div className={`kpi-icon ${color}`}>{icon}</div>}
       <div className="kpi-label">{label}</div>
-      <div className={`kpi-value`}>{value}</div>
+      <div className="kpi-value">{value}</div>
       {sub && <div className="kpi-change">{sub}</div>}
     </div>
   );
 }
 
-// ---- Tabs ----
+// ── Tabs ───────────────────────────────────────────────────
 export function Tabs({ tabs, active, onChange }) {
   return (
     <div className="tabs">
       {tabs.map(tab => (
-        <button key={tab.key} className={`tab-btn ${active === tab.key ? 'active' : ''}`} onClick={() => onChange(tab.key)}>
-          {tab.label} {tab.count !== undefined && <span className="badge badge-muted" style={{ marginRight: 6 }}>{tab.count}</span>}
+        <button
+          key={tab.key}
+          className={`tab-btn ${active === tab.key ? 'active' : ''}`}
+          onClick={() => onChange(tab.key)}
+        >
+          {tab.label}
+          {tab.count !== undefined && (
+            <span className="badge badge-muted" style={{ marginRight: 6 }}>{tab.count}</span>
+          )}
         </button>
       ))}
     </div>
   );
 }
 
-// ---- Loading Spinner ----
+// ── Loading Spinner ────────────────────────────────────────
 export function Spinner() {
   return <div className="spinner" />;
 }
 
-// ---- Pagination ----
+// ── Pagination ─────────────────────────────────────────────
 export function usePagination(items, perPage = 20) {
   const [page, setPage] = useState(1);
   const total = Math.ceil(items.length / perPage);
@@ -164,17 +208,23 @@ export function usePagination(items, perPage = 20) {
 export function Pagination({ page, total, onChange }) {
   if (total <= 1) return null;
   return (
-    <div style={{ display: 'flex', gap: 8, justifyContent: 'center', padding: '16px 0' }}>
+    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '16px 0', flexWrap: 'wrap' }}>
       <button className="btn btn-ghost btn-sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>السابق</button>
       {Array.from({ length: total }, (_, i) => (
-        <button key={i + 1} className={`btn btn-sm ${page === i + 1 ? 'btn-primary' : 'btn-ghost'}`} onClick={() => onChange(i + 1)}>{i + 1}</button>
+        <button
+          key={i + 1}
+          className={`btn btn-sm ${page === i + 1 ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={() => onChange(i + 1)}
+        >
+          {i + 1}
+        </button>
       ))}
       <button className="btn btn-ghost btn-sm" disabled={page >= total} onClick={() => onChange(page + 1)}>التالي</button>
     </div>
   );
 }
 
-// ---- Form Field ----
+// ── Form Field ─────────────────────────────────────────────
 export function Field({ label, required, error, children, span }) {
   return (
     <div className="form-group" style={span ? { gridColumn: `span ${span}` } : {}}>
@@ -185,17 +235,20 @@ export function Field({ label, required, error, children, span }) {
   );
 }
 
-// ---- Summary Row ----
+// ── Summary Row ────────────────────────────────────────────
 export function SummaryRow({ label, value, bold, large, color }) {
   return (
-    <div className="invoice-total-row" style={large ? { borderTop: '2px solid #1e3a5f', paddingTop: 10, marginTop: 6 } : {}}>
-      <span style={{ fontWeight: bold ? 700 : 500, color: color || 'inherit', fontSize: large ? 16 : 14 }}>{label}</span>
-      <span style={{ fontWeight: bold ? 800 : 600, color: color || (large ? '#1e3a5f' : 'inherit'), fontSize: large ? 18 : 14 }}>{value}</span>
+    <div
+      className="invoice-total-row"
+      style={large ? { borderTop: '2px solid var(--primary-border)', paddingTop: 10, marginTop: 6 } : {}}
+    >
+      <span style={{ fontWeight: bold ? 700 : 500, color: color || 'inherit', fontSize: large ? 15 : 14 }}>{label}</span>
+      <span style={{ fontWeight: bold ? 800 : 600, color: color || (large ? 'var(--primary-dark)' : 'inherit'), fontSize: large ? 17 : 14 }}>{value}</span>
     </div>
   );
 }
 
-// ---- Page Header ----
+// ── Page Header ────────────────────────────────────────────
 export function PageHeader({ title, subtitle, actions }) {
   return (
     <div className="page-header">
@@ -208,16 +261,21 @@ export function PageHeader({ title, subtitle, actions }) {
   );
 }
 
-// ---- Icon Button ----
+// ── Icon Button ────────────────────────────────────────────
 export function IconBtn({ onClick, title, color = 'ghost', children, disabled }) {
   return (
-    <button className={`btn btn-${color} btn-icon btn-sm`} onClick={onClick} title={title} disabled={disabled}>
+    <button
+      className={`btn btn-${color} btn-icon btn-sm`}
+      onClick={onClick}
+      title={title}
+      disabled={disabled}
+    >
       {children}
     </button>
   );
 }
 
-// ---- Filter Bar ----
+// ── Filter Bar ─────────────────────────────────────────────
 export function FilterBar({ children }) {
   return <div className="filter-bar">{children}</div>;
 }

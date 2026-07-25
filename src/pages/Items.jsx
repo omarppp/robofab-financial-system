@@ -69,7 +69,8 @@ function ItemForm({ initial = {}, warehouses, onSave, onClose }) {
 }
 
 export default function Items() {
-  const { items, addItem, updateItem, deleteItem, warehouses } = useStore();
+  const { items, addItem, updateItem, deleteItem, warehouses, currentBusinessUnit } = useStore();
+  const bu = currentBusinessUnit;
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('');
   const [whFilter, setWhFilter] = useState('');
@@ -77,7 +78,8 @@ export default function Items() {
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
 
-  const filtered = items.filter(i => {
+  const buItems = items.filter(i => (i.businessUnitId || 'main') === bu);
+  const filtered = buItems.filter(i => {
     if (search && !i.name.includes(search) && !i.code?.includes(search)) return false;
     if (catFilter && i.category !== catFilter) return false;
     if (whFilter && i.warehouseId !== whFilter) return false;
@@ -86,7 +88,7 @@ export default function Items() {
   });
 
   const totalValue = filtered.reduce((s, i) => s + ((i.quantity || 0) * (i.purchasePrice || 0)), 0);
-  const lowStockCount = items.filter(i => i.quantity <= i.minQuantity).length;
+  const lowStockCount = buItems.filter(i => i.quantity <= i.minQuantity).length;
 
   const openAdd = () => { setSelected(null); setModal('add'); };
   const openEdit = (i) => { setSelected(i); setModal('edit'); };
@@ -107,7 +109,7 @@ export default function Items() {
     <div>
       <PageHeader
         title="الأصناف والمخزون"
-        subtitle={`${items.length} صنف • قيمة المخزون: ${formatCurrency(totalValue)} • ${lowStockCount} صنف بكمية منخفضة`}
+        subtitle={`${buItems.length} صنف • قيمة المخزون: ${formatCurrency(totalValue)} • ${lowStockCount} صنف بكمية منخفضة`}
         actions={<button className="btn btn-primary" onClick={openAdd}>+ إضافة صنف</button>}
       />
 

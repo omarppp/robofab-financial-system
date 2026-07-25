@@ -42,13 +42,15 @@ function SupplierForm({ initial = {}, onSave, onClose }) {
 }
 
 export default function Suppliers({ onNavigate }) {
-  const { suppliers, addSupplier, updateSupplier, deleteSupplier, invoices, payments } = useStore();
+  const { suppliers, addSupplier, updateSupplier, deleteSupplier, invoices, payments, currentBusinessUnit } = useStore();
+  const bu = currentBusinessUnit;
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
 
-  const filtered = suppliers.filter(s => !search || s.name.includes(search) || s.phone?.includes(search));
-  const totalPayables = suppliers.reduce((s, sp) => s + (sp.balance || 0), 0);
+  const buSuppliers = suppliers.filter(s => (s.businessUnitId || 'main') === bu);
+  const filtered = buSuppliers.filter(s => !search || s.name.includes(search) || s.phone?.includes(search));
+  const totalPayables = buSuppliers.reduce((s, sp) => s + (sp.balance || 0), 0);
 
   const openView = (s) => { setSelected(s); setModal('view'); };
   const openEdit = (s) => { setSelected(s); setModal('edit'); };
@@ -71,7 +73,7 @@ export default function Suppliers({ onNavigate }) {
     <div>
       <PageHeader
         title="إدارة الموردين"
-        subtitle={`${suppliers.length} مورد • إجمالي المستحقات: ${formatCurrency(totalPayables)}`}
+        subtitle={`${buSuppliers.length} مورد • إجمالي المستحقات: ${formatCurrency(totalPayables)}`}
         actions={<button className="btn btn-primary" onClick={openAdd}>+ مورد جديد</button>}
       />
       <FilterBar>

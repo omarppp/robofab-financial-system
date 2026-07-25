@@ -57,13 +57,15 @@ function AccountForm({ initial = {}, onSave, onClose }) {
 }
 
 export default function Accounts() {
-  const { accounts, addAccount, updateAccount, deleteAccount, transfers, payments, receipts } = useStore();
+  const { accounts, addAccount, updateAccount, deleteAccount, transfers, payments, receipts, currentBusinessUnit } = useStore();
+  const bu = currentBusinessUnit;
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [modal, setModal] = useState(null); // null | 'add' | 'edit' | 'view'
   const [selected, setSelected] = useState(null);
 
-  const filtered = accounts.filter(a => {
+  const buAccounts = accounts.filter(a => (a.businessUnitId || 'main') === bu);
+  const filtered = buAccounts.filter(a => {
     if (search && !a.name.includes(search)) return false;
     if (typeFilter && a.type !== typeFilter) return false;
     return true;
@@ -96,13 +98,13 @@ export default function Accounts() {
     return txns.sort((a, b) => new Date(b.date) - new Date(a.date));
   };
 
-  const totalBalance = filtered.reduce((s, a) => s + (a.balance || 0), 0);
+  const totalBalance = buAccounts.reduce((s, a) => s + (a.balance || 0), 0);
 
   return (
     <div>
       <PageHeader
         title="الحسابات المالية"
-        subtitle={`${accounts.length} حساب • إجمالي الأرصدة: ${formatCurrency(totalBalance)}`}
+        subtitle={`${buAccounts.length} حساب • إجمالي الأرصدة: ${formatCurrency(totalBalance)}`}
         actions={<button className="btn btn-primary" onClick={openAdd}>+ إضافة حساب</button>}
       />
 
@@ -117,8 +119,8 @@ export default function Accounts() {
       {/* Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
         {Object.entries(ACCOUNT_TYPES).map(([type, label]) => {
-          const total = accounts.filter(a => a.type === type).reduce((s, a) => s + (a.balance || 0), 0);
-          if (total === 0 && !accounts.find(a => a.type === type)) return null;
+          const total = buAccounts.filter(a => a.type === type).reduce((s, a) => s + (a.balance || 0), 0);
+          if (total === 0 && !buAccounts.find(a => a.type === type)) return null;
           return (
             <div key={type} className="card" style={{ padding: 14 }}>
               <div className="text-sm text-muted">{label}</div>
