@@ -50,7 +50,7 @@ export default function Dashboard({ onNavigate }) {
   const salesChartData = {
     labels: months.map(m => m.label),
     datasets: [
-      { label: 'المبيعات',   data: salesByMonth,    backgroundColor: 'rgba(16,185,129,0.82)',  borderRadius: 6 },
+      { label: 'المبيعات',   data: salesByMonth,    backgroundColor: 'rgba(37,99,235,0.82)',   borderRadius: 6 },
       { label: 'المشتريات', data: purchasesByMonth, backgroundColor: 'rgba(59,130,246,0.65)', borderRadius: 6 },
     ],
   };
@@ -63,7 +63,7 @@ export default function Dashboard({ onNavigate }) {
         store.accounts.filter(a => (a.businessUnitId || 'main') === bu && a.type === 'custody').reduce((s, a) => s + (a.balance || 0), 0),
         store.accounts.filter(a => (a.businessUnitId || 'main') === bu && !['cash','bank','custody'].includes(a.type)).reduce((s, a) => s + (a.balance || 0), 0),
       ],
-      backgroundColor: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b'],
+      backgroundColor: ['#2563eb', '#60a5fa', '#8b5cf6', '#f59e0b'],
       borderWidth: 0, borderColor: 'transparent',
     }],
   };
@@ -104,7 +104,7 @@ export default function Dashboard({ onNavigate }) {
       {/* Stats Strip */}
       <div className="dashboard-stats-strip">
         <div className="dashboard-stat-card">
-          <div className="dashboard-stat-icon" style={{ background: 'rgba(16,185,129,0.10)' }}>
+          <div className="dashboard-stat-icon" style={{ background: 'rgba(37,99,235,0.10)' }}>
             <span style={{ fontSize: 22 }}>💹</span>
           </div>
           <div>
@@ -122,7 +122,7 @@ export default function Dashboard({ onNavigate }) {
           </div>
         </div>
         <div className="dashboard-stat-card">
-          <div className="dashboard-stat-icon" style={{ background: 'rgba(16,185,129,0.10)' }}>
+          <div className="dashboard-stat-icon" style={{ background: 'rgba(37,99,235,0.10)' }}>
             <span style={{ fontSize: 22 }}>💰</span>
           </div>
           <div>
